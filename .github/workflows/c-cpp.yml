@@ -1,0 +1,178 @@
+name: C/C++ CI
+from dataclasses import dataclass, asdict
+from typing import Optional, Tuple, Dict
+
+# =============================
+# Utilidades de entrada
+# =============================
+
+def input_str(msg: str) -> str:
+    while True:
+        s = input(msg).strip()
+        if s:
+            return s
+        print("Entrada vazia. Tente novamente.")
+
+def input_int(msg: str, minimo: Optional[int] = None) -> int:
+    while True:
+        try:
+            v = int(input(msg).replace(".", ""))
+            if minimo is not None and v < minimo:
+                print(f"Valor deve ser >= {minimo}.")
+                continue
+            return v
+        except ValueError:
+            print("Valor inválido. Digite um número inteiro.")
+
+
+def input_float(msg: str, minimo: Optional[float] = None) -> float:
+    while True:
+        try:
+            txt = input(msg).replace(".", "").replace(",", ".")
+            v = float(txt)
+            if minimo is not None and v < minimo:
+                print(f"Valor deve ser >= {minimo}.")
+                continue
+            return v
+        except ValueError:
+            print("Valor inválido. Digite um número (use vírgula ou ponto).")
+
+# =============================
+# Modelo de Carta
+# =============================
+
+@dataclass
+class Carta:
+    estado: str
+    codigo: str
+    cidade: str
+    populacao: int
+    area: float  # km²
+    pib: float   # bilhões
+    turisticos: int
+
+    @property
+    def densidade(self) -> float:
+        return self.populacao / self.area if self.area > 0 else float('inf')
+
+    def to_dict(self) -> Dict:
+        d = asdict(self)
+        d["densidade"] = round(self.densidade, 4)
+        return d
+
+# =============================
+# Cadastro e Exibição
+# =============================
+
+def cadastrar_carta(ix: int) -> Carta:
+    print(f"\n--- Cadastro da Carta {ix} ---")
+    estado = input_str("Estado (UF): ")
+    codigo = input_str("Código da carta: ")
+    cidade = input_str("Nome da cidade: ")
+    populacao = input_int("População (habitantes): ", minimo=0)
+    area = input_float("Área (km²): ", minimo=0.0001)
+    pib = input_float("PIB (em bilhões): ", minimo=0.0)
+    turisticos = input_int("Nº de pontos turísticos: ", minimo=0)
+    return Carta(estado, codigo, cidade, populacao, area, pib, turisticos)
+
+
+def exibir_carta(c: Carta) -> None:
+    print("\n================ CARTA ================")
+    print(f"Estado: {c.estado}")
+    print(f"Código: {c.codigo}")
+    print(f"Cidade: {c.cidade}")
+    print(f"População: {c.populacao}")
+    print(f"Área (km²): {c.area}")
+    print(f"PIB (bi): {c.pib}")
+    print(f"Pontos turísticos: {c.turisticos}")
+    print(f"Densidade (hab/km²): {c.densidade:.4f}")
+    print("======================================")
+
+# =============================
+# Comparações
+# =============================
+
+# Retorna a carta vencedora ou None em caso de empate
+
+def comparar(c1: Carta, c2: Carta, atributo: str, menor_vence: bool = False) -> Optional[Carta]:
+    v1 = getattr(c1, atributo) if atributo != "densidade" else c1.densidade
+    v2 = getattr(c2, atributo) if atributo != "densidade" else c2.densidade
+
+    if menor_vence:
+        if v1 < v2:
+            return c1
+        elif v2 < v1:
+            return c2
+        else:
+            return None
+    else:
+        if v1 > v2:
+            return c1
+        elif v2 > v1:
+            return c2
+        else:
+            return None
+
+
+ATRIBUTOS = {
+    1: ("populacao", False, "População (maior vence)"),
+    2: ("area", False, "Área (maior vence)"),
+    3: ("pib", False, "PIB (maior vence)"),
+    4: ("turisticos", False, "Pontos turísticos (maior vence)"),
+    5: ("densidade", True, "Densidade populacional (menor vence)")
+}
+
+
+def menu_atributos(titulo: str = "Escolha o atributo para comparação:") -> int:
+    print(f"\n{titulo}")
+    for k in sorted(ATRIBUTOS):
+        print(f"{k} - {ATRIBUTOS[k][2]}")
+    while True:
+        op = input_int("Opção: ")
+        if op in ATRIBUTOS:
+            return op
+        print("Opção inválida.")
+
+# =============================
+# Nível Novato
+# =============================
+
+def nivel_novato():
+    print("\n===== NÍVEL NOVATO =====")
+    c1 = cadastrar_carta(1)
+    c2 = cadastrar_carta(2)
+
+    # Atributo fixo: POPULAÇÃO
+    atributo, menor_vence, desc = ATRIBUTOS[1]
+    print(f"\nComparando pelo atributo: {desc}")
+
+    exibir_carta(c1)
+    exibir_carta(c2)
+
+    vencedor = comparar(c1, c2, atributo, menor_vence)
+    if vencedor is None:
+        print("\nResultado: EMPATE!")
+    else:
+        print(f"\nCarta vencedora: {vencedor.cidade} ({vencedor.codigo})")
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: configure
+      run: ./configure
+    - name: make
+      run: make
+    - name: make check
+      run: make check
+    - name: make distcheck
+      run: make distcheck
